@@ -15,50 +15,42 @@ export const nullDevice: Device = {
 
 const NO_PREVENT_DISPLAY_SLEEP_ID = -1;
 
-const SLOT_VIOLATION_MESSAGE = 'single viewer slot is already occupied';
-
 type ViewerConnectionAvailability = 'available' | 'occupied';
 
-class SingleViewerSlot {
-	private device: Readonly<Device> | null = null;
+class MultipleViewerSlots {
+	private devices: Map<string, Readonly<Device>> = new Map();
 
 	occupy(device: Device): void {
-		if (this.device && this.device.id !== device.id) {
-			throw new Error(SLOT_VIOLATION_MESSAGE);
-		}
-		this.device = Object.freeze({ ...device });
+		this.devices.set(device.id, Object.freeze({ ...device }));
 	}
 
 	releaseById(deviceIDToRemove: string): boolean {
-		if (!this.device) return false;
-		if (this.device.id !== deviceIDToRemove) {
-			return false;
-		}
-		this.device = null;
-		return true;
+		return this.devices.delete(deviceIDToRemove);
 	}
 
 	release(): void {
-		this.device = null;
+		this.devices.clear();
 	}
 
 	isAvailable(): boolean {
-		return this.device === null;
+		return true; // Always available for multiple connections
 	}
 
 	snapshot(): Device[] {
-		if (!this.device) return [];
-		return [{ ...this.device }];
+		return Array.from(this.devices.values()).map(device => ({ ...device }));
 	}
 
 	isOccupiedBy(deviceID: string): boolean {
-		if (!this.device) return false;
-		return this.device.id === deviceID;
+		return this.devices.has(deviceID);
+	}
+
+	count(): number {
+		return this.devices.size;
 	}
 }
 
 export class ConnectedDevicesService {
-	private readonly slot = new SingleViewerSlot();
+	private readonly slot = new MultipleViewerSlots();
 
 	pendingConnectionDevice: Device = nullDevice;
 
@@ -106,14 +98,7 @@ export class ConnectedDevicesService {
 	}
 
 	addDevice(device: Device): void {
-		try {
-			this.slot.occupy(device);
-		} catch (error) {
-			if (error instanceof Error && error.message === SLOT_VIOLATION_MESSAGE) {
-				throw error;
-			}
-			throw error;
-		}
+		this.slot.occupy(device);
 		if (this.preventDisplaySleepId === NO_PREVENT_DISPLAY_SLEEP_ID) {
 			this.preventDisplaySleepId = powerSaveBlocker.start('prevent-display-sleep');
 		}

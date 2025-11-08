@@ -45,7 +45,6 @@ const ScanQRStep: React.FC = () => {
   const [clientViewerPort, setClientViewerPort] = useState('80'); // Default port, can be changed later
   const classes = useStyles();
 
-  const [isViewerSlotAvailable, setIsViewerSlotAvailable] = useState(true);
   const [roomID, setRoomID] = useState('');
   const [LOCAL_LAN_IP, setLocalLanIP] = useState('');
   const [isQRCodeMagnified, setIsQRCodeMagnified] = useState(false);
@@ -63,54 +62,12 @@ const ScanQRStep: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
-
-    const handleAvailabilityChange = (_: unknown, payload: { isAvailable: boolean }): void => {
-      if (cancelled) return;
-      const isAvailable = Boolean(payload?.isAvailable);
-      setIsViewerSlotAvailable(isAvailable);
-      if (!isAvailable) {
-        setRoomID('');
-        setIsQRCodeMagnified(false);
-      }
-    };
-
-    window.electron.ipcRenderer
-      .invoke(IpcEvents.GetViewerConnectionAvailability)
-      .then((availability) => {
-        if (cancelled) return;
-        const isAvailable = Boolean(availability);
-        setIsViewerSlotAvailable(isAvailable);
-        if (!isAvailable) {
-          setRoomID('');
-          setIsQRCodeMagnified(false);
-        }
-      })
-      .catch((error) => {
-        console.error('Failed to get viewer slot availability:', error);
-      });
-
-    window.electron.ipcRenderer.on(
-      IpcEvents.ViewerConnectionAvailabilityChanged,
-      handleAvailabilityChange,
-    );
-
-    return () => {
-      cancelled = true;
-      window.electron.ipcRenderer.removeListener(
-        IpcEvents.ViewerConnectionAvailabilityChanged,
-        handleAvailabilityChange,
-      );
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
     const fetchRoomId = async (): Promise<void> => {
       const roomId = await window.electron.ipcRenderer.invoke(
         IpcEvents.GetWaitingForConnectionSharingSessionRoomId,
       );
       if (cancelled) return;
-      if (typeof roomId === 'string' && roomId !== '' && isViewerSlotAvailable) {
+      if (typeof roomId === 'string' && roomId !== '') {
         setRoomID(roomId);
       } else {
         setRoomID('');
@@ -138,7 +95,7 @@ const ScanQRStep: React.FC = () => {
       clearInterval(roomInterval);
       clearInterval(ipInterval);
     };
-  }, [isViewerSlotAvailable]);
+  }, []);
 
   const portString = useMemo(() => {
     return `:${clientViewerPort}`;
@@ -147,15 +104,12 @@ const ScanQRStep: React.FC = () => {
     return roomID !== '' ? `/${roomID}` : '';
   }, [roomID]);
   const shareUrl = useMemo(() => {
-    if (!isViewerSlotAvailable) return '';
     if (LOCAL_LAN_IP === '') return '';
     if (roomPath === '') return '';
     return `http://${LOCAL_LAN_IP}${portString}${roomPath}`;
-  }, [LOCAL_LAN_IP, portString, roomPath, isViewerSlotAvailable]);
-  const isQrInteractive = shareUrl !== '';
-  const connectionLimitTooltip = t('connection-limit-reached-tooltip');
-  const qrTooltipContent = isQrInteractive ? t('click-to-make-bigger') : connectionLimitTooltip;
-  const copyTooltipContent = isQrInteractive ? t('click-to-copy') : connectionLimitTooltip;
+  }, [LOCAL_LAN_IP, portString, roomPath]);
+  const qrTooltipContent = t('click-to-make-bigger');
+  const copyTooltipContent = t('click-to-copy');
 
   return (
     <>
@@ -192,35 +146,27 @@ const ScanQRStep: React.FC = () => {
             >
               <Tooltip content={qrTooltipContent} position={Position.LEFT}>
                 <span>
-                  {isQrInteractive ? (
-                    <Button
-                      id="magnify-qr-code-button"
-                      className={classes.smallQRCode}
-                      onClick={() => {
-                        if (!isQrInteractive) return;
-                        setIsQRCodeMagnified(true);
+                  <Button
+                    id="magnify-qr-code-button"
+                    className={classes.smallQRCode}
+                    onClick={() => {
+                      setIsQRCodeMagnified(true);
+                    }}
+                  >
+                    <QRCodeSVG
+                      value={shareUrl || 'waiting'}
+                      level="H"
+                      bgColor="rgba(0,0,0,0.0)"
+                      fgColor="#000000"
+                      imageSettings={{
+                        // src: `http://127.0.0.1${portString}/logo192.png`,
+                        src: Logo192,
+                        width: 40,
+                        height: 40,
+                        excavate: true,
                       }}
-                      disabled={!isQrInteractive}
-                    >
-                      <QRCodeSVG
-                        value={shareUrl}
-                        level="H"
-                        bgColor="rgba(0,0,0,0.0)"
-                        fgColor="#000000"
-                        imageSettings={{
-                          // src: `http://127.0.0.1${portString}/logo192.png`,
-                          src: Logo192,
-                          width: 40,
-                          height: 40,
-                          excavate: true,
-                        }}
-                      />
-                    </Button>
-                  ) : (
-                    <div className={classes.smallQRCode} style={{ cursor: 'not-allowed' }}>
-                      <img src={Logo192} alt={t('deskreen-logo')} width={64} height={64} />
-                    </div>
-                  )}
+                    />
+                  </Button>
                 </span>
               </Tooltip>
             </div>
@@ -238,9 +184,7 @@ const ScanQRStep: React.FC = () => {
         }}
       >
         <Text className="bp3-text-muted">
-          {isQrInteractive
-            ? t('enter-the-following-address-in-browser-address-bar-on-any-device')
-            : t('one-viewing-client-is-connected-already')}
+          {t('enter-the-following-address-in-browser-address-bar-on-any-device')}
         </Text>
       </Row>
 
@@ -254,57 +198,22 @@ const ScanQRStep: React.FC = () => {
         <Tooltip content={copyTooltipContent} position={Position.TOP}>
           <span>
             <Button
-              intent={isQrInteractive ? 'primary' : 'none'}
+              intent="primary"
               icon="duplicate"
               style={{ borderRadius: '100px' }}
-              disabled={!isQrInteractive}
               onClick={() => {
-                if (!isQrInteractive) return;
                 window.electron.ipcRenderer.invoke(IpcEvents.WriteTextToClipboard, shareUrl);
               }}
             >
-              {isQrInteractive ? shareUrl : t('viewing-client-connected-label')}
+              {shareUrl}
             </Button>
           </span>
         </Tooltip>
       </Row>
-      {!isQrInteractive && (
-        <>
-          <Row
-            style={{
-              marginTop: '12px',
-              marginBottom: '6px',
-              display: 'flex',
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-            }}
-          >
-            <Text className="bp3-text-muted">
-              {t('deskreen-ce-allows-only-one-client-at-same-time')}
-            </Text>
-          </Row>
-          <Row
-            style={{
-              marginBottom: '10px',
-              display: 'flex',
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-            }}
-          >
-            <Text className="bp3-text-muted">
-              {t('this-will-be-available-only-in-pro-version')}
-            </Text>
-          </Row>
-        </>
-      )}
 
       <Dialog
         className={classes.bigQRCodeDialogRoot}
-        isOpen={isQrInteractive && isQRCodeMagnified}
+        isOpen={isQRCodeMagnified}
         onClose={() => setIsQRCodeMagnified(false)}
         canEscapeKeyClose
         canOutsideClickClose
@@ -323,7 +232,7 @@ const ScanQRStep: React.FC = () => {
             {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
             {/* @ts-ignore */}
             <QRCodeSVG
-              value={isQrInteractive ? shareUrl : 'INACTIVE'}
+              value={shareUrl || 'waiting'}
               level="H"
               imageSettings={{
                 // src: `http://127.0.0.1${portString}/logo192.png`,
@@ -337,12 +246,8 @@ const ScanQRStep: React.FC = () => {
             />
           </Col>
           <Col>
-            <H3>
-              {isQrInteractive
-                ? `${hostname}${portString}${roomPath}`
-                : t('waiting-for-connection')}
-            </H3>
-            <H3>{isQrInteractive ? shareUrl : t('waiting-for-connection')}</H3>
+            <H3>{`${hostname}${portString}${roomPath}`}</H3>
+            <H3>{shareUrl}</H3>
           </Col>
         </Row>
       </Dialog>

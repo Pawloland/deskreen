@@ -10,10 +10,12 @@ interface VideoJSPlayerProps {
   stream: undefined | MediaStream;
   playing: boolean;
   containerEl: HTMLElement | null;
+  isFlippedH?: boolean;
+  isFlippedV?: boolean;
 }
 
 function VideoJSPlayer(props: VideoJSPlayerProps) {
-  const { stream, playing, containerEl } = props;
+  const { stream, playing, containerEl, isFlippedH = false, isFlippedV = false } = props;
   const videoElRef = useRef<HTMLVideoElement | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const playerRef = useRef<any>(null);
@@ -34,7 +36,7 @@ function VideoJSPlayer(props: VideoJSPlayerProps) {
     // set container background to black to show letterboxing
     try {
       containerEl.style.backgroundColor = 'black';
-    } catch {}
+    } catch { }
     containerEl.appendChild(videoEl);
     videoElRef.current = videoEl;
 
@@ -72,11 +74,12 @@ function VideoJSPlayer(props: VideoJSPlayerProps) {
         el.srcObject = stream;
         el.style.objectFit = 'contain';
         el.style.backgroundColor = 'black';
+        el.style.transform = `scale(${isFlippedH ? -1 : 1}, ${isFlippedV ? -1 : 1})`;
         if (playing) {
           // attempt play after attaching
           const p = el.play();
           if (p && typeof p.catch === 'function') {
-            p.catch(() => {});
+            p.catch(() => { });
           }
         }
       } else {
@@ -89,7 +92,7 @@ function VideoJSPlayer(props: VideoJSPlayerProps) {
       // eslint-disable-next-line no-console
       console.error('Failed to attach MediaStream to element', e);
     }
-  }, [stream, playing]);
+  }, [stream, playing, isFlippedH, isFlippedV]);
 
   useEffect(() => {
     const player = playerRef.current;

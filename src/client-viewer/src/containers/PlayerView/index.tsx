@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import VideoJSPlayer from '../../components/VideoJSPlayer';
 import PlayerControlPanel from '../../components/PlayerControlPanel';
 import { COMPARISON_CANVAS_ID, PLAYER_WRAPPER_ID } from '../../constants/appConstants';
@@ -6,14 +6,14 @@ import { type VideoQualityType } from '../../features/VideoAutoQualityOptimizer/
 import { togglePlayerFullscreen } from '../../utils/playerFullscreen';
 
 interface PlayerViewProps {
-	isWithControls: boolean;
-	setIsWithControls: (_: boolean) => void;
-	handlePlayPause: () => void;
-	isPlaying: boolean;
-	setVideoQuality: (_: VideoQualityType) => void;
-	videoQuality: VideoQualityType;
-	screenSharingSourceType: ScreenSharingSourceType;
-	streamUrl: undefined | MediaStream;
+  isWithControls: boolean;
+  setIsWithControls: (_: boolean) => void;
+  handlePlayPause: () => void;
+  isPlaying: boolean;
+  setVideoQuality: (_: VideoQualityType) => void;
+  videoQuality: VideoQualityType;
+  screenSharingSourceType: ScreenSharingSourceType;
+  streamUrl: undefined | MediaStream;
 }
 
 function PlayerView(props: PlayerViewProps) {
@@ -32,6 +32,9 @@ function PlayerView(props: PlayerViewProps) {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   // no external player ref needed for video.js variant
+
+  const [isVideoFlippedH, setIsVideoFlippedH] = useState(false);
+  const [isVideoFlippedV, setIsVideoFlippedV] = useState(false);
 
   useEffect(() => {
     if (!streamUrl) return;
@@ -89,17 +92,21 @@ function PlayerView(props: PlayerViewProps) {
         onSwitchChangedCallback={(isEnabled) => setIsWithControls(isEnabled)}
         isDefaultPlayerTurnedOn={isWithControls}
         handleClickFullscreen={() => {
-				const result = togglePlayerFullscreen();
-				if (result === 'failed') {
-					console.warn('Unable to toggle fullscreen');
-				}
-				return result;
+          const result = togglePlayerFullscreen();
+          if (result === 'failed') {
+            console.warn('Unable to toggle fullscreen');
+          }
+          return result;
         }}
         handleClickPlayPause={handlePlayPause}
         isPlaying={isPlaying}
         setVideoQuality={setVideoQuality}
         selectedVideoQuality={videoQuality}
         screenSharingSourceType={screenSharingSourceType}
+        isVideoFlippedH={isVideoFlippedH}
+        setIsVideoFlippedH={setIsVideoFlippedH}
+        isVideoFlippedV={isVideoFlippedV}
+        setIsVideoFlippedV={setIsVideoFlippedV}
       />
       <div
         id='video-container'
@@ -135,6 +142,7 @@ function PlayerView(props: PlayerViewProps) {
                 height: '100%',
                 objectFit: 'contain',
                 backgroundColor: 'black',
+                transform: `scale(${isVideoFlippedH ? -1 : 1}, ${isVideoFlippedV ? -1 : 1})`,
               }}
             />
           ) : (
@@ -142,6 +150,8 @@ function PlayerView(props: PlayerViewProps) {
               stream={streamUrl}
               playing={isPlaying}
               containerEl={document.getElementById(PLAYER_WRAPPER_ID)}
+              isFlippedH={isVideoFlippedH}
+              isFlippedV={isVideoFlippedV}
             />
           )}
         </div>
